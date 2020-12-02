@@ -9,7 +9,7 @@ def getDates():
     r = requests.get('https://www.reddit.com/r/JoeRogan/search?q=general+discussion&sort=new&restrict_sr=on&t=all')
     soup = BeautifulSoup(r.content, 'html.parser')
 
-    tags = soup.find("div", class_ = 'QBfRw7Rj8UkxybFpX-USO')
+    tags = soup.find_all("div", class_ = 'QBfRw7Rj8UkxybFpX-USO')
     dates = []
     num_comments = []
     for x in tags:
@@ -27,11 +27,11 @@ def getDates():
     dates_comments = list(zip1)
     return dates_comments
 
-def setUpDatabase(db_name):
-    path = os.path.dirname(os.path.abspath(__file__))
-    conn = sqlite3.connect(path+'/'+db_name)
-    cur = conn.cursor()
-    return cur, conn
+# def setUpDatabase(db_name):
+#     path = os.path.dirname(os.path.abspath(__file__))
+#     conn = sqlite3.connect(path+'/'+db_name)
+#     cur = conn.cursor()
+#     return cur, conn
 
 def setUpComments(data, cur, conn):
     cur.execute('DROP TABLE IF EXISTS Popularity')
@@ -48,3 +48,4 @@ def setUpComments(data, cur, conn):
     conn.commit()
 
 data = getDates()
+print(data)
