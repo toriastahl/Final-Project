@@ -8,7 +8,9 @@ import csv
 import pandas
 import unittest
 import matplotlib
+from textwrap import wrap
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
 
 #set up database
 def readDataFromFile(filename):
@@ -132,7 +134,6 @@ def countNames(names):
     return sorted(returndict.items(), key=lambda x: x[1], reverse=True)
     
 
-
 #puts the names into file
 def printNamesPretty(counts,file):
     dir = os.path.dirname(file)
@@ -180,71 +181,108 @@ def fillGuestId(cur,conn):
             cur.execute("UPDATE JRP SET guestid = ? WHERE id = ?",(guestid,id))
     conn.commit()
 
-def barChartGuests(cur):
+def barChartApperances(cur):
     # Initialize the plotcd
-    fig, ax1 = plt.subplots()
+    fig = plt.figure(figsize=(10,4))
+    ax1 = fig.add_subplot()   
+    #making ax1
     l1 = dict()
     #select top 8 guests already in order 
-    cur.execute('SELECT * FROM JRP_guest_count LIMIT 8')
+    cur.execute('SELECT * FROM JRP_guest_count LIMIT 6')
     cur1 = cur.fetchall()
     for row in cur1:
         l1[row[1]]=row[2]
-    
 
-    #(names,values)
     people = []
     apperances=[]
     for key,value in l1.items():
         people.append(key)
         apperances.append(value)
+    people = ['\n'.join(wrap(x, 16)) for x in people]
+    ax1.bar(people,apperances,align='center', alpha=0.5, color='red')
+    ax1.set(xlabel='Guest Name', ylabel='Apperances',
+       title='8 Most Common Guests on JRP')
+    ax1.set_xticklabels(people,FontSize='9')
+    plt.show()
+def barChart2(cur):
+    fig = plt.figure(figsize=(10,4))
+    ax2 = fig.add_subplot()   
+    #make ax2 fist by finding 6 top episode
+    cur.execute("SELECT views FROM JRP ORDER BY views DESC LIMIT 6")
+    cur1 = cur.fetchall()
+    views = []
+    for x in cur1:
+        views.append(x[0])
+    guestname = []
+    for x in views:
+        cur.execute('SELECT JRP_guest_count.name FROM JRP LEFT JOIN JRP_guest_count ON JRP.guestid = JRP_guest_count.id WHERE JRP.views == ?',(x,))
+        intm= cur.fetchone()
+        guestname.append(intm[0])
+    #if a value in 'None' due to two people on the episode, get the episode title instead 
+        for x in range(len(guestname)):
+            if(guestname[x]==None):
+                cur.execute("SELECT title FROM JRP WHERE JRP.views == ?", (views[x],))
+                title = cur.fetchone()
+                guestname[x]=title[0]
+    #make ax2
+    guestname = ['\n'.join(wrap(x, 16)) for x in  guestname]
+    ax2.bar(guestname,views,align='center', alpha=0.5, color='red')
+    ax2.set(xlabel='Guest Name', ylabel='Episode views',
+       title='Guests of the highest viewed episodes')
    
-    ax1.bar(people,apperances,align='center', alpha=0.5)
-    plt.title('8 Most Common Guests on JRP')
-    plt.xlabel('Guest Name')
-    plt.ylabel('Apperances')
+    ax2.ticklabel_format(useOffset=False, style='plain', axis='y')
+    
+    plt.show()
 
-    # #make plot with Jack Dorsey episode show likes to dislikes ratio
-    # ax2 = fig.add_subplot(182)
-
-    # #find top 8 disliked episodes
-    # l1 = list()
-    # cur.execute('SELECT name,apperances FROM JRP_guest_count LEFT JOIN Categories ON Restaurants.category_id=Categories.id WHERE Restaurants.rating >= ? AND Categories.title == ? ',(rating,category))
-    # for row in cur:
-    #     l1.append(row)
-    # return l1
-
-    # #(names,values)
-    # ax1.bar([l1[0][0],l1[1][0],l1[2][0],l1[3][0],l1[4][0],l1[5][0],l1[6][0],l1[7][0]],[l1[0][1],l1[1][1],l1[2][1],l1[3][1],l1[4][1],l1[5][1],l1[6][1],l1[7][1]])
-    # ax1.title('8 Most Common Guests on JRP')
-    # ax1.xlabel('Guest Name')
-    # ax1.ylabel('Apperances')
-
-    # Show the plot
+def pieChartMostViewedEps(cur):
+    # get the most viewed eps title, like and disliked 
+    # Data to plot
+    cur.execute("SELECT title,likes,dislikes FROM JRP ORDER BY views DESC LIMIT 1")
+    cur1 = cur.fetchall()
+    
+    episode = cur1[0][0]
+    likes = cur1[0][1]
+    dislikes = cur1[0][2]
+    percLikes = likes/(likes+dislikes)
+    prcDislikes = dislikes/(likes+dislikes)
+    labels = ['likes (%d)'%likes,'dislikes (%d)'%dislikes]
+    sizes = [percLikes,prcDislikes]
+    colors = ['red','orange']
+    
+ 
+    # Plot
+    #title1 = 'Most Viewed Episode %s likes to dislikes'%episode
+    fig = plt.figure()
+    ax1 = fig.add_subplot()
+    plt.pie(sizes,  labels=labels, colors=colors,
+        autopct='%1.1f%%', startangle=14
+       )
+    ax1.set(title='Most Viewed Episode %s likes to dislikes'%episode)
+ #title="Most Viewed Episode %s likes to dislikes" % (episode)
+    plt.axis('equal')
     plt.show()
 
 
+
 def main():
-    #database set up and add 25 at a time
-    #PUT AT LEAST 200 PEOPLE BEFORE GETTING APPERANCES/GUEST NAMES BELOW 
     cur, conn = setUpDatabase('JRP.db')
-    uploadDataJRE(cur,conn)
+    #SECTION 1 - PUT AT LEAST 200 PEOPLE BEFORE GETTING APPERANCES/GUEST NAMES BELOW 
+    #uploadDataJRE(cur,conn)
 
 
-    #getting the names and counts of 
+    #SECTION 2 
     # names = getNames(cur)   
     # countedNames = countNames(names)
     # printNamesPretty(countedNames, 'fileOutPutGuests.txt')
     # putNamesInData(countedNames,cur,conn)
 
-    #uncomment when done making guest ID table and insert common key
+    #SECTION 3
     #fillGuestId(cur,conn)
 
-    #plot data
-    #barChartGuests(cur)
+    #GRAPHS
+    barChartApperances(cur)
+    barChart2(cur)
+    pieChartMostViewedEps(cur)
 
-#help resources 
-    #https://stackoverflow.com/questions/29582736/python3-is-there-a-way-to-iterate-row-by-row-over-a-very-large-sqlite-table-wi
-    #https://stackoverflow.com/questions/26464567/csv-read-specific-row
-    #https://stackoverflow.com/questions/3024546/change-one-cells-data-in-mysql
 if __name__ == '__main__':
     main()
