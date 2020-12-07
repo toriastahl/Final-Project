@@ -1,18 +1,23 @@
 import requests
 import json
 import sys
+import os
+import matplotlib
+import sqlite3
+import unittest
 
 #get data for 100 most recent episodes
 def episodes_search(id):
+    token = 'BQD5XTbCYStn9uwMVhekpkGG3wNWIcNnDkhhvp9x5aeXlY__KJd9vBq7KqlqUm8RJ5eExBh-NtCapxYiixTDZ4R8-yJq7rQKOOmagysK8F53cRPJK6mJhg-ZAOpstPeV61MesAi-ZAQAyaR4YQ'
     baseurl = 'https://api.spotify.com/v1/shows/' + id + '/episodes'
     offset1 = 1
-    param = {'limit':50,'offset':offset1, 'access_token':'BQAJ8UViPjldce4oXB4JmjBP-QlKvAxlMIj3HpeeZvclfZzEBQZTzLuaqvRBLmwcLq_KmoDHD5ihhSJkisfG3iwT-5KphYTKiwLRvU8JoD0q6FSYmAFvdgFr1UogVuBH28qXd7Mk6Qb6VY4226sguXKVIA'}
+    param = {'limit':50,'offset':offset1, 'access_token':token}
     response = requests.get(baseurl, params = param)
     jsonVersion = response.json()
     offset1 +=50
     id = '4rOoJ6Egrf8K2IrywzwOMk'
     baseurl = 'https://api.spotify.com/v1/shows/' + id + '/episodes'
-    param = {'limit':50,'offset':offset1, 'access_token':'BQAJ8UViPjldce4oXB4JmjBP-QlKvAxlMIj3HpeeZvclfZzEBQZTzLuaqvRBLmwcLq_KmoDHD5ihhSJkisfG3iwT-5KphYTKiwLRvU8JoD0q6FSYmAFvdgFr1UogVuBH28qXd7Mk6Qb6VY4226sguXKVIA'}
+    param = {'limit':50,'offset':offset1, 'access_token':token}
     response2 = requests.get(baseurl, params = param)
     jsonVersion2 = response2.json()
     return (jsonVersion, jsonVersion2)
@@ -33,7 +38,7 @@ def get_date_and_title(id):
     info = []
     for x in all_results:
         base_url = 'https://api.spotify.com/v1/episodes/' + x
-        param = {'access_token':'BQAJ8UViPjldce4oXB4JmjBP-QlKvAxlMIj3HpeeZvclfZzEBQZTzLuaqvRBLmwcLq_KmoDHD5ihhSJkisfG3iwT-5KphYTKiwLRvU8JoD0q6FSYmAFvdgFr1UogVuBH28qXd7Mk6Qb6VY4226sguXKVIA'}
+        param = {'access_token':'BQD5XTbCYStn9uwMVhekpkGG3wNWIcNnDkhhvp9x5aeXlY__KJd9vBq7KqlqUm8RJ5eExBh-NtCapxYiixTDZ4R8-yJq7rQKOOmagysK8F53cRPJK6mJhg-ZAOpstPeV61MesAi-ZAQAyaR4YQ'}
         response = requests.get(base_url, params = param)
         jsonVersion = response.json()
         title = jsonVersion['name']
@@ -42,7 +47,7 @@ def get_date_and_title(id):
     return info
 
 
-print(get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk'))
+#print(get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk'))
 
 def setUpDatabase(db_name):
     path = os.path.dirname(os.path.abspath(__file__))
@@ -51,27 +56,31 @@ def setUpDatabase(db_name):
     return cur, conn
 
 def setUpEpisodes(data, cur, conn):
-    cur.execute('DROP TABLE IF EXISTS Episodes')
-    cur.execute("CREATE TABLE Episodes (episode_id TEXT PRIMARY KEY, name TEXT, release_date TEXT)")
+    #cur.execute('DROP TABLE IF EXISTS Episodes')
+    cur.execute("CREATE TABLE IF NOT EXISTS Spotify_Episodes (episode_id INTEGER PRIMARY KEY, name TEXT, release_date TEXT)")
     conn.commit()
 
     count = 1
+    print(data)
     for x in data:
+        print(x)
+        print('\n')
         name = x[0]
         date = x[1]
         episode_id = count
-        cur.execute("INSERT INTO Episodes (episode_id TEXT PRIMARY KEY, name TEXT, release_date TEXT) VALUES(?, ?, ?)", (episode_id, name, date))
+        #Integer primary key NOT text
+        cur.execute("INSERT OR IGNORE INTO Spotify_Episodes (episode_id, name, release_date) VALUES(?,?,?)", (episode_id, name, date))
         count += 1
     conn.commit()
 
 def main():
-    data = get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk'
-    cur, conn = setUpDatabase('episodes.db')
-    setUpCategoriesTable(data, cur, conn)
-    setUpRestaurantTable(data, cur, conn)
+    data = get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk')
+    print(data)
+    cur, conn = setUpDatabase('JRP.db')
+    setUpEpisodes(data, cur, conn)
+    
     conn.close()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
-    unittest.main(verbosity = 2)
