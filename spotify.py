@@ -5,40 +5,33 @@ import os
 import matplotlib
 import sqlite3
 import unittest
+import matplotlib.pyplot as plt
 
 #get data for 100 most recent episodes
-def episodes_search(id):
-    token = 'BQD5XTbCYStn9uwMVhekpkGG3wNWIcNnDkhhvp9x5aeXlY__KJd9vBq7KqlqUm8RJ5eExBh-NtCapxYiixTDZ4R8-yJq7rQKOOmagysK8F53cRPJK6mJhg-ZAOpstPeV61MesAi-ZAQAyaR4YQ'
+def episodes_search(id, offset):
+    token = 'BQD4wTxwnlzXeBfqifBA1YegzMl2fGlx3atht-DpIOA9N1ME5BCFOvxE5dYHqsTJ47k65z_rNqXRKLUPJ52SJ6-HEADUAsXyyNBvPw2cxv55yN1ijeT_Hdkahz0ZqTgT4wdme4uItqtYBPIN4G_Akz7WGw'
     baseurl = 'https://api.spotify.com/v1/shows/' + id + '/episodes'
-    offset1 = 1
-    param = {'limit':50,'offset':offset1, 'access_token':token}
+    param = {'limit':25,'offset':offset, 'access_token':token}
     response = requests.get(baseurl, params = param)
     jsonVersion = response.json()
-    offset1 +=50
-    id = '4rOoJ6Egrf8K2IrywzwOMk'
-    baseurl = 'https://api.spotify.com/v1/shows/' + id + '/episodes'
-    param = {'limit':50,'offset':offset1, 'access_token':token}
-    response2 = requests.get(baseurl, params = param)
-    jsonVersion2 = response2.json()
-    return (jsonVersion, jsonVersion2)
+    return jsonVersion
 
 #get ID for each of 100 episodes
-def get_ids(id):
-    all_results = episodes_search(id)
+def get_ids(id, offset):
+    all_results = episodes_search(id, offset)
     ids = []
-    for x in all_results:
-        for y in x['items']:
-            new_id = y['id']
-            ids.append(new_id)
+    for y in all_results['items']:
+        new_id = y['id']
+        ids.append(new_id)
     return ids
 
 #use ID to get name and release date of each episode
-def get_date_and_title(id):
-    all_results = get_ids(id)
+def get_date_and_title(id,offset):
+    all_results = get_ids(id, offset)
     info = []
     for x in all_results:
         base_url = 'https://api.spotify.com/v1/episodes/' + x
-        param = {'access_token':'BQD5XTbCYStn9uwMVhekpkGG3wNWIcNnDkhhvp9x5aeXlY__KJd9vBq7KqlqUm8RJ5eExBh-NtCapxYiixTDZ4R8-yJq7rQKOOmagysK8F53cRPJK6mJhg-ZAOpstPeV61MesAi-ZAQAyaR4YQ'}
+        param = {'access_token':'BQD4wTxwnlzXeBfqifBA1YegzMl2fGlx3atht-DpIOA9N1ME5BCFOvxE5dYHqsTJ47k65z_rNqXRKLUPJ52SJ6-HEADUAsXyyNBvPw2cxv55yN1ijeT_Hdkahz0ZqTgT4wdme4uItqtYBPIN4G_Akz7WGw'}
         response = requests.get(base_url, params = param)
         jsonVersion = response.json()
         title = jsonVersion['name']
@@ -61,10 +54,9 @@ def setUpEpisodes(data, cur, conn):
     conn.commit()
 
     count = 1
-    print(data)
     for x in data:
-        print(x)
-        print('\n')
+        # print(x)
+        # print('\n')
         name = x[0]
         date = x[1]
         episode_id = count
@@ -73,12 +65,46 @@ def setUpEpisodes(data, cur, conn):
         count += 1
     conn.commit()
 
-def main():
-    data = get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk')
-    print(data)
-    cur, conn = setUpDatabase('JRP.db')
-    setUpEpisodes(data, cur, conn)
+def createPieChart(cur): 
+    # Initialize the plotcd
+    fig, ax1 = plt.subplots()
+    l1 = []
     
+    cur.execute('SELECT * FROM Spotify_Episodes')
+    cur1 = cur.fetchall()
+    for row in cur1:
+        l1.append(row[1])
+    reg = []
+    special = []
+    for name in l1:
+        if name.startswith('#') == True:
+            reg.append(name)
+        else:
+            special.append(name)
+    labels = 'Regular Episodes', 'Special Episodes'
+    sizes = [len(reg), len(special)]
+    explode = (0,0)
+
+    ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',shadow=True, startangle=90)
+    plt.title('Proportion of "Special Episodes" (episodes that are not numbered)')
+    ax1.axis('equal')
+
+    plt.show()
+
+def main():
+    cur, conn = setUpDatabase('JRP.db')
+    try:
+        cur.execute("select count(*) from Spotify_Episodes")  
+        n = cur.fetchone()[0]
+    except:
+        n=0
+    current_offset = n+1
+    data = get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk', current_offset)
+    setUpEpisodes(data, cur, conn)
+
+    #uncomment line below once desired amount of data has been gathered
+    #createPieChart(cur)
+
     conn.close()
 
 
