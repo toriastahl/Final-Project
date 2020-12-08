@@ -52,20 +52,29 @@ def setUpDatabase(db_name):
 
 #put 25 items into database at a time
 def setUpComments(dates_comments, cur, conn):
-    cur.execute('DROP TABLE IF EXISTS Popularity')
-    cur.execute("CREATE TABLE Popularity (discussion_id INTEGER PRIMARY KEY, dates TEXT, comments INTEGER)")
-    for x in dates_comments:
+   
+    cur.execute("CREATE TABLE IF NOT EXISTS Popularity (discussion_id INTEGER PRIMARY KEY, dates TEXT, comments INTEGER)")
+
+    #select max id (last one put in db)
+    cur.execute('SELECT discussion_id FROM Popularity WHERE discussion_id  = (SELECT MAX(discussion_id ) FROM Popularity)')
+    start = cur.fetchone()
+    if (start!=None):
+        start = start[0] + 1
+    else:
+        start = 1
+
+    for x in dates_comments[start:start+25]:
         date = x[0]
         comments = x[1]
         discussion_id = x[2]
         cur.execute("INSERT INTO Popularity (discussion_id, dates, comments) VALUES(?, ?, ?)", (discussion_id, date, comments))
-        if discussion_id == 25:
-            break
-        try:
-            cur.execute("SELECT discussion_id FROM Popularity WHERE discussion_id = ?", (x['discussion_id'],))
-            row = cur.fetchone()
-        except:
-            pass
+        # if discussion_id == 25:
+        #     break
+        # try:
+        #     cur.execute("SELECT discussion_id FROM Popularity WHERE discussion_id = ?", (x['discussion_id'],))
+        #     row = cur.fetchone()
+        # except:
+        #     pass
         # else:
         #     cur.execute('SELECT discussion_id FROM Popularity WHERE discussion_id = (SELECT MAX(discussion_id) FROM Popularity)')
         #     row = fetchone()
