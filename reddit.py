@@ -49,56 +49,28 @@ def setUpComments(dates_comments, cur, conn):
     cur.execute('DROP TABLE IF EXISTS Popularity')
     cur.execute("CREATE TABLE Popularity (discussion_id TEXT PRIMARY KEY, dates TEXT, comments INTEGER)")
 
-    # sorted_comments = sorted(dates_comments, key = lambda x: int(x[1]), reverse = True)
-    # print(sorted_comments)
-
-    #get max id from database
-    # start = None
-    # cur.execute("SELECT discussion_id FROM Popularity WHERE disucssion_id = (SELECT MAX(discussion_id) FROM Popularity)")
-    # start = cur.fetchone()
-    # if (start != None):
-    #     start = start[0] + 1
-    # else:
-    #     start = 1
-
     count = 1
+    # counter = 0
     for x in dates_comments:
-        # for i in range(start-1):
-        #     next(dates_comments)
-        # row = next(dates_comments)
-        # for row in dates_comments:
         date = x[0]
         comments = x[1]
         discussion_id = count
         cur.execute("INSERT INTO Popularity (discussion_id, dates, comments) VALUES(?, ?, ?)", (discussion_id, date, comments))
         count += 1
-            #break at 25 entries
-            # if (counter - 1) % 25 == 0:
-            #     break
+        # counter += 1
+        # if counter == 25:
+        #     break
     conn.commit()
 
-# def DateFormat(dates_commenets, cur, conn):
-#     new_format = []
-#     for x in dates_comments:
-#         date = x[1]
-#         for x in date:
 
 def makeVisualizations(cur):
-    #create graph
-    # fig = plt.figure()
-    # ax1 = fig.add_subplot()
+    # Initialize the plotcd
+    fig = plt.figure()
+    ax1 = fig.add_subplot()   
 
     fig, ax1 = plt.subplots()
-    N = 11
     width = 0.35
-    ind = np.arange(N)
-    # cur.execute("SELECT dates,comments FROM Popularity")
-    # data = cur.fetchall()
-    # dates = []
-    # comments = []
-    # for row in data:
-    #     dates.append(row[0])
-    #     comments.append(row[1])
+ 
     dict1 = {}
     cur.execute("SELECT dates,comments FROM Popularity")
     info = cur.fetchall()
@@ -107,19 +79,44 @@ def makeVisualizations(cur):
     dates = []
     comments = []
     for key,value in dict1.items():
-        dates.append(key)
+        key_split = key.split(',')
+        dates.append(key_split[0])
         comments.append(value)
     
+    dates = ['\n'.join(wrap(x, 100)) for x in dates]
     ax1.bar(dates,comments, width, color='blue')
-    ax1.set_xticks(ind + width/ 2)
-    ax1.set_xticklabels(("December", "November", "October","Septempter", "October"))
-    ax1.autoscale_view()
-    # plt.set_xticklabels(("December", "November", "October","Septempter", "October"))
-    # plt.xticks(dates, comments, rotation=90)
-    # comments=['\n'.join(wrap(x,16)) for x in comments]
     ax1.set(xlabel='Date', ylabel='Number of Comments', title='Popularity of Podcast Dates by Comments on Reddit')
+    ax1.set_xticklabels(dates,FontSize='7',rotation=70)
 
     plt.show()
+
+def vizualizationByComments(cur):
+#percentage of posts above 100 comments
+    total_posts = 0
+    cur.execute("SELECT dates FROM Popularity")
+    info = cur.fetchall()
+    for x in info:
+        total_posts += 1
+
+    num_posts = 0
+    cur.execute("SELECT comments FROM Popularity WHERE comments >=?", (50,))
+    data = cur.fetchall()
+    for y in data:
+        num_posts += 1
+    posts_below = total_posts - num_posts
+    
+    labels = ['Posts above 100 comments (%d)'%num_posts,'Posts below 100 comments (%d)'%posts_below]
+    sizes = [percBelow,prcAbove]
+    colors = ['red','blue']
+    fig = plt.figure()
+    ax1 = fig.add_subplot()
+    plt.pie(sizes,  labels=labels, colors=colors,
+        autopct='%1.1f%%', startangle=14
+       )
+    ax1.set(title='Discussion Posts Above 100 Comments %s Versus Below')
+    plt.axis('equal')
+    plt.show()
+
 
 def main():
     data = getDates('FP_reddit.htm')
@@ -127,7 +124,8 @@ def main():
     setUpComments(data,cur,conn)
 
     #plot data
-    makeVisualizations(cur)
+    # makeVisualizations(cur)
+    vizualizationByComments(cur)
 
 if __name__ == '__main__':
     main()
