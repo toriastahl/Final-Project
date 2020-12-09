@@ -9,40 +9,26 @@ import matplotlib.pyplot as plt
 
 #get data for 100 most recent episodes
 def episodes_search(id, offset,cur):
-    cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
-    offset1 = cur.fetchone()
-    token = 'BQCDPgjnmZhJbh-Vnh1i4hplmWFQ3Kj2X_q6Soc1t_2cRDriKwdsafSN5U3zMwgmYn61tMLU9PQsqChirmhJd2KRjgG2xSreQDnXltQRaRVo0mM-G-mZAKzewOPdagJs7KgoraVwmQP-GJhv3XHgrpTfhw'
+    token = 'BQBXvNyNPJ4AHxQdw-DhVq5T3evPlRGkRbuGw1kcSF4KEWQZp2NytAg5yHfOworDZWSny3BZnrxbz984jDVfHm5Ml4RPs-NIzCJ1TqtWmB_iL0Nzt_UOlRqZtgxsvvmnMc97Gnuf6Drjdpwn9KGIXe_Taw'
     baseurl = 'https://api.spotify.com/v1/shows/' + id + '/episodes'
-    param = {'limit':25,'offset':offset1, 'access_token':token}
+    param = {'limit':25,'offset': offset, 'access_token':token}
     response = requests.get(baseurl, params = param)
     jsonVersion = response.json()
-    return jsonVersion
-
-#get ID for each of 100 episodes
-def get_ids(id, offset,cur):
-    all_results = episodes_search(id, offset,cur)
+    all_results = jsonVersion
     ids = []
     for y in all_results['items']:
         new_id = y['id']
         ids.append(new_id)
-    return ids
-
-#use ID to get name and release date of each episode
-def get_date_and_title(id,offset,cur):
-    all_results = get_ids(id, offset,cur)
     info = []
-    for x in all_results:
+    for x in ids:
         base_url = 'https://api.spotify.com/v1/episodes/' + x
-        param = {'access_token':'BQCDPgjnmZhJbh-Vnh1i4hplmWFQ3Kj2X_q6Soc1t_2cRDriKwdsafSN5U3zMwgmYn61tMLU9PQsqChirmhJd2KRjgG2xSreQDnXltQRaRVo0mM-G-mZAKzewOPdagJs7KgoraVwmQP-GJhv3XHgrpTfhw'}
+        param = {'access_token':token}
         response = requests.get(base_url, params = param)
         jsonVersion = response.json()
         title = jsonVersion['name']
         date = jsonVersion['release_date']
         info.append((title, date))
     return info
-
-
-#print(get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk'))
 
 def setUpDatabase(db_name):
     path = os.path.dirname(os.path.abspath(__file__))
@@ -51,12 +37,14 @@ def setUpDatabase(db_name):
     return cur, conn
 
 def setUpEpisodes(data, cur, conn):
-    #cur.execute('DROP TABLE IF EXISTS Episodes')
     cur.execute("CREATE TABLE IF NOT EXISTS Spotify_Episodes (episode_id INTEGER PRIMARY KEY, name TEXT, release_date TEXT)")
     conn.commit()
-    cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
-    start = cur.fetchone()
-    start = start[0]
+    try:
+        cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
+        start = cur.fetchone()
+        start = start[0]
+    except:
+        start= 0
     count = 1
     for x in data:
         name = x[0]
@@ -92,19 +80,81 @@ def createPieChart(cur):
     ax1.axis('equal')
     plt.show()
 
+def createBarGraph(cur): 
+    fig, ax1 = plt.subplots()
+    l1 = []
+    cur.execute('SELECT * FROM Spotify_Episodes')
+    cur1 = cur.fetchall()
+    for row in cur1:
+        l1.append(row[2])
+    l2 = []
+    for x in l1:
+        new = x.split("-")
+        if new[0] == '2020':
+            l2.append(new)
+    January = 0
+    February = 0
+    March = 0
+    April = 0
+    May = 0
+    June = 0
+    July = 0
+    August = 0
+    September = 0
+    October = 0
+    November = 0
+    December = 0
+    for x in l2:
+        if x[1] == "01":
+            January += 1
+        elif x[1] == "02":
+            February += 1
+        elif x[1] == "03":
+            March += 1
+        elif x[1] == "04":
+            April += 1
+        elif x[1] == "05":
+            May += 1
+        elif x[1] == "06":
+            June += 1
+        elif x[1] == "07":
+            July += 1
+        elif x[1] == "08":
+            August += 1
+        elif x[1] == "09":
+            September += 1
+        elif x[1] == "10":
+            October += 1
+        elif x[1] == "11":
+            November += 1
+        elif x[1] == "12":
+            December += 1
+    
+    months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    episodes = [January, February, March, April, May, June, July, August, September, October, November, December]
+    ax1.bar(months,episodes,align='center', alpha=0.5, color='green')
+    ax1.set(xlabel='Month (2020)', ylabel='Number of Episodes',
+       title='Number of JRE Episodes per Month')
+    ax1.set_xticklabels(months,FontSize='9')
+    plt.show()
+
 def main():
     cur, conn = setUpDatabase('JRP.db')
+
+    #SECTION 1: get data
+    #to create accurate visualizations, you should gather at least 200 pieces of data (run code 8 times)
     try:
-        cur.execute("select count(*) from Spotify_Episodes")  
-        n = cur.fetchone()[0]
+        cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
+        start = cur.fetchone()
+        start = start[0]
     except:
-        n=0
-    current_offset = n+1
-    data = get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk', current_offset,cur)
+        start = 0
+    data = episodes_search('4rOoJ6Egrf8K2IrywzwOMk', start, cur)
     setUpEpisodes(data, cur, conn)
 
-    #uncomment line below once desired amount of data has been gathered
+    #SECTION 2: create graphs once data has been collected
     #createPieChart(cur)
+    #createBarGraph(cur)
 
     conn.close()
 

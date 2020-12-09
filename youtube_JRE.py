@@ -2,8 +2,6 @@ import re
 import os
 import numpy as np
 import sqlite3
-import youtube_dl
-from tabulate import tabulate
 import csv
 import pandas
 import unittest
@@ -277,12 +275,12 @@ def main():
     # putNamesInData(countedNames,cur,conn)
 
     #SECTION 3
-    #fillGuestId(cur,conn)
+    # fillGuestId(cur,conn)
 
     #GRAPHS
-    barChartApperances(cur)
-    barChart2(cur)
-    pieChartMostViewedEps(cur)
+    # barChartApperances(cur)
+    # barChart2(cur)
+    # pieChartMostViewedEps(cur)
 
 if __name__ == '__main__':
     main()
