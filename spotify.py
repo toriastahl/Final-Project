@@ -8,17 +8,19 @@ import unittest
 import matplotlib.pyplot as plt
 
 #get data for 100 most recent episodes
-def episodes_search(id, offset):
-    token = 'BQD4wTxwnlzXeBfqifBA1YegzMl2fGlx3atht-DpIOA9N1ME5BCFOvxE5dYHqsTJ47k65z_rNqXRKLUPJ52SJ6-HEADUAsXyyNBvPw2cxv55yN1ijeT_Hdkahz0ZqTgT4wdme4uItqtYBPIN4G_Akz7WGw'
+def episodes_search(id, offset,cur):
+    cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
+    offset1 = cur.fetchone()
+    token = 'BQCDPgjnmZhJbh-Vnh1i4hplmWFQ3Kj2X_q6Soc1t_2cRDriKwdsafSN5U3zMwgmYn61tMLU9PQsqChirmhJd2KRjgG2xSreQDnXltQRaRVo0mM-G-mZAKzewOPdagJs7KgoraVwmQP-GJhv3XHgrpTfhw'
     baseurl = 'https://api.spotify.com/v1/shows/' + id + '/episodes'
-    param = {'limit':25,'offset':offset, 'access_token':token}
+    param = {'limit':25,'offset':offset1, 'access_token':token}
     response = requests.get(baseurl, params = param)
     jsonVersion = response.json()
     return jsonVersion
 
 #get ID for each of 100 episodes
-def get_ids(id, offset):
-    all_results = episodes_search(id, offset)
+def get_ids(id, offset,cur):
+    all_results = episodes_search(id, offset,cur)
     ids = []
     for y in all_results['items']:
         new_id = y['id']
@@ -26,12 +28,12 @@ def get_ids(id, offset):
     return ids
 
 #use ID to get name and release date of each episode
-def get_date_and_title(id,offset):
-    all_results = get_ids(id, offset)
+def get_date_and_title(id,offset,cur):
+    all_results = get_ids(id, offset,cur)
     info = []
     for x in all_results:
         base_url = 'https://api.spotify.com/v1/episodes/' + x
-        param = {'access_token':'BQD4wTxwnlzXeBfqifBA1YegzMl2fGlx3atht-DpIOA9N1ME5BCFOvxE5dYHqsTJ47k65z_rNqXRKLUPJ52SJ6-HEADUAsXyyNBvPw2cxv55yN1ijeT_Hdkahz0ZqTgT4wdme4uItqtYBPIN4G_Akz7WGw'}
+        param = {'access_token':'BQCDPgjnmZhJbh-Vnh1i4hplmWFQ3Kj2X_q6Soc1t_2cRDriKwdsafSN5U3zMwgmYn61tMLU9PQsqChirmhJd2KRjgG2xSreQDnXltQRaRVo0mM-G-mZAKzewOPdagJs7KgoraVwmQP-GJhv3XHgrpTfhw'}
         response = requests.get(base_url, params = param)
         jsonVersion = response.json()
         title = jsonVersion['name']
@@ -52,14 +54,14 @@ def setUpEpisodes(data, cur, conn):
     #cur.execute('DROP TABLE IF EXISTS Episodes')
     cur.execute("CREATE TABLE IF NOT EXISTS Spotify_Episodes (episode_id INTEGER PRIMARY KEY, name TEXT, release_date TEXT)")
     conn.commit()
-
+    cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
+    start = cur.fetchone()
+    start = start[0]
     count = 1
     for x in data:
-        # print(x)
-        # print('\n')
         name = x[0]
         date = x[1]
-        episode_id = count
+        episode_id = start+count
         #Integer primary key NOT text
         cur.execute("INSERT OR IGNORE INTO Spotify_Episodes (episode_id, name, release_date) VALUES(?,?,?)", (episode_id, name, date))
         count += 1
@@ -88,7 +90,6 @@ def createPieChart(cur):
     ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',shadow=True, startangle=90)
     plt.title('Proportion of "Special Episodes" (episodes that are not numbered)')
     ax1.axis('equal')
-
     plt.show()
 
 def main():
@@ -99,7 +100,7 @@ def main():
     except:
         n=0
     current_offset = n+1
-    data = get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk', current_offset)
+    data = get_date_and_title('4rOoJ6Egrf8K2IrywzwOMk', current_offset,cur)
     setUpEpisodes(data, cur, conn)
 
     #uncomment line below once desired amount of data has been gathered
