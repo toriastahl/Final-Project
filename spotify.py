@@ -9,7 +9,7 @@ import csv
 import matplotlib.pyplot as plt
 
 #FIRST STEP: GO TO https://developer.spotify.com/console/get-several-episodes/?ids=77o6BIVlYM3msb4MMIL1jH,0Q86acNRm6V9GYx55SXKwf
-#GENERATE A NEW TOKEN AND INSERT IT ON LINE 14
+#GENERATE A NEW TOKEN AND INSERT IT ON LINE 15
 
 def episodes_search(id, offset,cur):
     token = 'BQBHiYmwuJbi7s0AHmGT78Zsf8MoLHQ90XYdMS49HIV14Y4WiTiEuiRefIxrIw0nhqxQKP8NimgWHjKZyPpi-kD1PZPq9xj0ycot5eMGHJjFohI78pM-E6Le3hf--tmOHG7ryIG4l--1Xf0kpDWI1XQPUg'
