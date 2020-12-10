@@ -40,7 +40,7 @@ def getDates(filename):
         num += 1
 
     zip1 = zip(dates, num_comments, count)
-    dates_comments = list(zip1)[:100]
+    dates_comments = list(zip1)[:101]
     return dates_comments
 
 def setUpDatabase(db_name):
