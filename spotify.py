@@ -5,11 +5,14 @@ import os
 import matplotlib
 import sqlite3
 import unittest
+import csv
 import matplotlib.pyplot as plt
 
-#get data for 100 most recent episodes
+#FIRST STEP: GO TO https://developer.spotify.com/console/get-several-episodes/?ids=77o6BIVlYM3msb4MMIL1jH,0Q86acNRm6V9GYx55SXKwf
+#GENERATE A NEW TOKEN AND INSERT IT ON LINE 14
+
 def episodes_search(id, offset,cur):
-    token = 'BQBXvNyNPJ4AHxQdw-DhVq5T3evPlRGkRbuGw1kcSF4KEWQZp2NytAg5yHfOworDZWSny3BZnrxbz984jDVfHm5Ml4RPs-NIzCJ1TqtWmB_iL0Nzt_UOlRqZtgxsvvmnMc97Gnuf6Drjdpwn9KGIXe_Taw'
+    token = 'BQBHiYmwuJbi7s0AHmGT78Zsf8MoLHQ90XYdMS49HIV14Y4WiTiEuiRefIxrIw0nhqxQKP8NimgWHjKZyPpi-kD1PZPq9xj0ycot5eMGHJjFohI78pM-E6Le3hf--tmOHG7ryIG4l--1Xf0kpDWI1XQPUg'
     baseurl = 'https://api.spotify.com/v1/shows/' + id + '/episodes'
     param = {'limit':25,'offset': offset, 'access_token':token}
     response = requests.get(baseurl, params = param)
@@ -75,12 +78,12 @@ def createPieChart(cur):
     sizes = [len(reg), len(special)]
     explode = (0,0)
 
-    ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',shadow=True, startangle=90)
+    ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',shadow=True, startangle=90, colors = ("red","yellow"))
     plt.title('Proportion of "Special Episodes" (episodes that are not numbered)')
     ax1.axis('equal')
     plt.show()
 
-def createBarGraph(cur): 
+def createBarGraph(cur,file): 
     fig, ax1 = plt.subplots()
     l1 = []
     cur.execute('SELECT * FROM Spotify_Episodes')
@@ -132,29 +135,39 @@ def createBarGraph(cur):
     
     months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
     episodes = [January, February, March, April, May, June, July, August, September, October, November, December]
-    ax1.bar(months,episodes,align='center', alpha=0.5, color='green')
+    ax1.bar(months,episodes,align='center', alpha=0.5, color='red')
     ax1.set(xlabel='Month (2020)', ylabel='Number of Episodes',
        title='Number of JRE Episodes per Month')
     ax1.set_xticklabels(months,FontSize='9')
     plt.show()
+
+    total_zip = zip(months,episodes)
+    all_data = list(total_zip)
+    dir = os.path.dirname(file)
+    out_file = open(os.path.join(dir, file), "w")
+    with open(file) as f:
+        csv_writer = csv.writer(out_file, delimiter=",", quotechar='"')
+        csv_writer.writerow(["Month (2020)","Number of Episodes"])
+        for x in all_data:
+            csv_writer.writerow([x[0], x[1]])
 
 def main():
     cur, conn = setUpDatabase('JRP.db')
 
     #SECTION 1: get data
     #to create accurate visualizations, you should gather at least 200 pieces of data (run code 8 times)
-    try:
-        cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
-        start = cur.fetchone()
-        start = start[0]
-    except:
-        start = 0
-    data = episodes_search('4rOoJ6Egrf8K2IrywzwOMk', start, cur)
-    setUpEpisodes(data, cur, conn)
+    # try:
+    #     cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
+    #     start = cur.fetchone()
+    #     start = start[0]
+    # except:
+    #     start = 0
+    # data = episodes_search('4rOoJ6Egrf8K2IrywzwOMk', start, cur)
+    # setUpEpisodes(data, cur, conn)
 
-    #SECTION 2: create graphs once data has been collected
-    #createPieChart(cur)
-    #createBarGraph(cur)
+    #SECTION 2: create calculations + graphs once data has been collected
+    createPieChart(cur)
+    createBarGraph(cur, 'fileOutputEpisodes.txt')
 
     conn.close()
 
