@@ -2,6 +2,8 @@ import re
 import os
 import numpy as np
 import sqlite3
+import youtube_dl
+from tabulate import tabulate
 import csv
 import pandas
 import unittest
@@ -24,63 +26,11 @@ def setUpDatabase(db_name):
     cur = conn.cursor()
     return cur, conn
 
-# #below is all the functions to pull data from youtube (when the videos use to exist...)
-# def getData():
-#     ydl = youtube_dl.YoutubeDL({'outtmpl': '%(id)s%(ext)s'})
-
-#     with ydl:
-#         ydl.params.update(ignoreerrors=True) #Dom Irrera's podcast is blocked on Copyright grounds
-#         result = ydl.extract_info(
-#             'https://www.youtube.com/playlist?list=UUzQUP1qoWDoEbmsQxvdjxgQ',
-#             download = False # We just want to extract the info
-#         )
-#     id = []
-#     titles = []
-#     views = []
-#     likes = []
-#     dislikes = []
-#     avg_rating = []
-#     guest_names = []
-#     for t in range(len(result['entries'])):
-#         try:
-#             id.append(result['entries'][t]['id'])
-#             titles.append(result['entries'][t]['title'])
-#             views.append(result['entries'][t]['view_count'])
-#             likes.append(result['entries'][t]['like_count'])
-#             dislikes.append(result['entries'][t]['dislike_count'])
-#             avg_rating.append(result['entries'][t]['average_rating'])
-#         except:
-#             pass
-#     dir = os.path.dirname('youtube_data.csv')
-#     out_file = open(os.path.join(dir, 'youtube_data.csv'), "w")
-
-#     #get guest names from titles
-#     regex = r'^.*?#.*?(-|with)+\s*?(?P<name>.*?)(\(.*?\))?$'
-#     pattern = re.compile(regex)
-#     #go through each title and use refex to get name
-#     for title in titles:
-#         try:
-#             guests = re.split(',|&', pattern.match(title).group('name'))
-#             for person in guests:
-#                 guest_names.append(person.strip()) 
-#         except:
-#             guest_names.append('N/A')
-#     #write data to csv file
-#     with open('youtube_data.csv') as f:
-#         csv_writer = csv.writer(out_file, delimiter=",", quotechar='"')
-#         csv_writer.writerow(["id","video_id","title","view","likes","dislikes","rating","guestid"])
-#         for x in range(len(titles)):
-#             try:
-#                 cur.execute('SELECT id FROM JRP_guest_count WHERE name = ?',(guest_names[x], ))
-#                 guestid = cur.fetchone()[0]
-#             except:
-#                 guestid=-1
-#             csv_writer.writerow([id[x],titles[x],views[x],likes[x],dislikes[x],avg_rating[x],guestid])
-#     out_file.close()
 
 #function to put 25 items from csv file to database
 def uploadDataJRE(cur,conn):
-    cur.execute('''CREATE TABLE IF NOT EXISTS JRP (id INTEGER UNIQUE, video_id TEXT, title TEXT, views INTEGER, likes INTEGER, dislikes INTEGER, rating REAL, guestid INTEGER)''')
+    cur.execute('CREATE TABLE IF NOT EXISTS JRP (id INTEGER UNIQUE, video_id TEXT, title TEXT, views INTEGER, likes INTEGER, dislikes INTEGER, rating REAL, guestid INTEGER)')
+    cur.execute('CREATE TABLE IF NOT EXISTS JRP_guest_count (id INTEGER PRIMARY KEY, name TEXT, apperances INTEGER)')
     # Pick up where we left off
     start = None
     #select max id (last one put in db)
@@ -90,6 +40,13 @@ def uploadDataJRE(cur,conn):
         start = start[0] + 1
     else:
         start = 1
+    #select max id from guests 
+    cur.execute('SELECT id FROM JRP_guest_count WHERE id = (SELECT MAX(id) FROM JRP_guest_count)')
+    startguests = cur.fetchone()
+    if (startguests!=None):
+        startguests = startguests[0] + 1
+    else:
+        startguests = 1
     #open file to read data
     with open('youtube_data.csv','r') as f:
         csvreader = csv.reader(f)
@@ -97,99 +54,74 @@ def uploadDataJRE(cur,conn):
             next(csvreader)
         row = next(csvreader)
         for row in csvreader:
-            cur.execute("INSERT OR IGNORE INTO JRP (id,video_id,title,views,likes,dislikes,rating,guestid) VALUES (?,?,?,?,?,?,?,?)",(start,row[0],row[1],row[2],row[3],row[4],row[5],-1))
+            name = getName(row[1])
+            #put name in guest id if it doesnt exist 
+            if(len(name)>0):
+                for x in name:
+                    #try to find if they are in the db
+                    cur.execute("SELECT apperances FROM JRP_guest_count WHERE name = ?",(x,))
+                    apperances1= cur.fetchone()
+                    if(apperances1!=None):
+                        cur.execute('update JRP_guest_count set apperances = apperances + 1 where name = ?', (x,))
+                    else:
+                        #else they dont exist yet
+                        cur.execute("INSERT INTO JRP_guest_count(id,name,apperances) VALUES (?,?,?)", (startguests,x,1))
+                        startguests=startguests+1       
+            #get the id of the guest to link tables if there is only one guest
+            if(len(name)==1):
+                cur.execute("SELECT id FROM JRP_guest_count WHERE name = ?",(name[0],))
+                guestid = cur.fetchone()[0]
+            else: 
+                guestid = 0
+            cur.execute("INSERT OR IGNORE INTO JRP (id,video_id,title,views,likes,dislikes,rating,guestid) VALUES (?,?,?,?,?,?,?,?)",(start,row[0],row[1],row[2],row[3],row[4],row[5],guestid))
             start=start + 1
+    
             #if 25 were added break
             if (start-1) % 25 == 0:
                 break
+
     conn.commit()
 
 #returns list of names from titles that are in the format (Joe Rogan Experience #1560 - Mike Baker)         
-def getNames(cur):
-    names = []
-    cur.execute('SELECT title FROM JRP')
-    titles = cur.fetchall()
+def getName(name):
     regex = r'^.*?#.*?(-|with)+\s*?(?P<name>.*?)(\(.*?\))?$'
     pattern = re.compile(regex)
-    #go through each title and use regex to get name only getting section name
-    for title in titles:
-        try:
-            title = title[0]
-            #guests = re.findall(regex,title)
-            guests = re.split(',|&', pattern.match(title).group('name'))
-            for person in guests:
-                names.append(person.strip()) 
-        except:
-            #title is irregular or a small highlight clip
+    names = []
+    try:      
+        guests = re.split(',|&', pattern.match(name).group('name'))
+        for person in guests:
+            names.append(person.strip()) 
+    except:
             pass
     return names
-
-#count names and remove singles of guests
-def countNames(names):
-    returndict = dict()
-    for person in names: 
-        returndict[person] = returndict.get(person,0)+1
-    return sorted(returndict.items(), key=lambda x: x[1], reverse=True)
     
-
 #puts the names into file
-def printNamesPretty(counts,file):
+def printNamesPretty(cur,file):
+    cur.execute('SELECT name,apperances FROM JRP_guest_count ORDER BY apperances DESC')
+    names = []
+    apperances = []
+    for x in cur.fetchall():
+        names.append(x[0])
+        apperances.append(x[1])
     dir = os.path.dirname(file)
     out_file = open(os.path.join(dir, file), "w")
     with open(file) as f:
         csv_writer = csv.writer(out_file, delimiter=",", quotechar='"')
         csv_writer.writerow(["Guest","Number Apperances"])
-        for x in counts:
-            csv_writer.writerow([x[0], x[1]])
+        for x in range(len(names)):
+            csv_writer.writerow([names[x], apperances[x]])
 
-#make seperate table for guests that appear more than once
-def putNamesInData(counts,cur,conn):
-    cur.execute('DROP TABLE IF EXISTS JRP_guest_count')
-    cur.execute('CREATE TABLE JRP_guest_count (id INTEGER PRIMARY KEY, name TEXT, apperances INTEGER)')
-    y=1
-    for x in counts:
-        cur.execute("INSERT INTO JRP_guest_count (id,name,apperances) VALUES (?,?,?)",(y,x[0],x[1]))
-        y+=1
-    conn.commit()
-
-def fillGuestId(cur,conn):
-    regex = r'^.*?#.*?(-|with)+\s*?(?P<name>.*?)(\(.*?\))?$'
-    pattern = re.compile(regex)
-    cur.execute("""SELECT * FROM JRP""")
-    results = cur.fetchall()
-    for row in results:
-        id=row[0] 
-        title = row[2]
-        
-        names=[]
-        try:
-            guests = re.split(',|&', pattern.match(title).group('name'))
-            for person in guests:
-                names.append(person.strip())
-        except:
-            pass
-        if(len(names)==1):
-            cur.execute("SELECT id FROM JRP_guest_count WHERE JRP_guest_count.name = ?" , (names[0],))
-            guestid = cur.fetchone()
-            cur.execute("UPDATE JRP SET guestid = ? WHERE id = ?",(guestid[0],id))
-        else:
-            guestid=0
-         
-            #put guest id of 0 for exceptions of multiple people on episode, or a special clip
-            cur.execute("UPDATE JRP SET guestid = ? WHERE id = ?",(guestid,id))
-    conn.commit()
-
-def barChartApperances(cur):
+def barChart1(cur):
     # Initialize the plotcd
     fig = plt.figure(figsize=(10,4))
     ax1 = fig.add_subplot()   
     #making ax1
     l1 = dict()
-    #select top 8 guests already in order 
-    cur.execute('SELECT * FROM JRP_guest_count LIMIT 6')
+    #select top 6 guests already in order 
+    cur.execute('SELECT name,apperances FROM JRP_guest_count ORDER BY apperances DESC LIMIT 6 ')
     cur1 = cur.fetchall()
     for row in cur1:
-        l1[row[1]]=row[2]
+        l1[row[0]]=row[1]
 
     people = []
     apperances=[]
@@ -202,10 +134,11 @@ def barChartApperances(cur):
        title='8 Most Common Guests on JRP')
     ax1.set_xticklabels(people,FontSize='9')
     plt.show()
+
 def barChart2(cur):
     fig = plt.figure(figsize=(10,4))
     ax2 = fig.add_subplot()   
-    #make ax2 fist by finding 6 top episode
+    #make ax2 fist by finding 6 top episode by views
     cur.execute("SELECT views FROM JRP ORDER BY views DESC LIMIT 6")
     cur1 = cur.fetchall()
     views = []
@@ -221,16 +154,81 @@ def barChart2(cur):
             if(guestname[x]==None):
                 cur.execute("SELECT title FROM JRP WHERE JRP.views == ?", (views[x],))
                 title = cur.fetchone()
-                guestname[x]=title[0]
+                title = title[0].split("- ",1)[1]
+                guestname[x]=title
+    # adjust views to closest whole million
+    roundedviews=[]
+    for x in views:
+        y = str(round(x,-6))
+        roundedviews.append(int(y[0:2]))
     #make ax2
     guestname = ['\n'.join(wrap(x, 16)) for x in  guestname]
-    ax2.bar(guestname,views,align='center', alpha=0.5, color='red')
-    ax2.set(xlabel='Guest Name', ylabel='Episode views',
-       title='Guests of the highest viewed episodes')
-   
-    ax2.ticklabel_format(useOffset=False, style='plain', axis='y')
-    
+    ax2.barh(guestname,roundedviews,align='center', alpha=0.5, color='red')
+    ax2.set(title='Most Watched Guests of JRE')
+    for index, value in enumerate(roundedviews):
+        plt.text(value, index, str(value))
+    ax2.legend(['Views in Millions'])
     plt.show()
+
+def barChart3(cur):
+    fig = plt.figure(figsize=(10,4))
+    ax2 = fig.add_subplot()   
+    #make ax2 fist by finding 6 top episode by views
+    cur.execute("SELECT views FROM JRP ORDER BY views DESC LIMIT 6")
+    cur1 = cur.fetchall()
+    views = []
+    for x in cur1:
+        views.append(x[0])
+    titles = []
+    #get titles of the videos
+    for x in views:
+        cur.execute('SELECT JRP.title FROM JRP LEFT JOIN JRP_guest_count ON JRP.guestid = JRP_guest_count.id WHERE JRP.views == ?',(x,))
+        intm= cur.fetchone()
+        titles.append(intm[0])
+    
+    #get the likes and dislikes
+    likes=[]
+    dislikes=[]
+    for x in titles:
+        cur.execute('SELECT JRP.likes,JRP.dislikes FROM JRP WHERE JRP.title == ?',(x,))
+        intm = cur.fetchone()
+        likes.append(intm[0])
+        dislikes.append(intm[1])
+    N=6
+    titles = ['\n'.join(wrap(x, 16)) for x in  titles]
+    ind = np.arange(N)  
+    width = 0.35 
+    p1 = plt.bar(ind, likes, width, color = 'black')
+    p2 = plt.bar(ind, dislikes, width, bottom=likes, color = 'red')
+    plt.ylabel('Video Interaction')
+    plt.title('Video Interactions for Top 6 Viewed JRP Youtube videos')
+    plt.xticks(ind, (titles[0], titles[1], titles[2], titles[3], titles[4], titles[5]))
+    #plt.yticks(np.arange(0, 81, 10))
+    plt.legend((p1[0], p2[0]), ('Likes', 'Dislikes'))
+    plt.show()
+
+def barChart4(cur):
+    fig = plt.figure(figsize=(10,4))
+      
+    #make ax2 fist by finding top 6 disliked videos
+    cur.execute("SELECT dislikes,title FROM JRP ORDER BY views DESC LIMIT 6")
+    cur1 = cur.fetchall()
+    dislikes = []
+    titles=[]
+    for x in cur1:
+        dislikes.append(x[0])
+        titles.append(x[1])
+    N=6
+    titles = ['\n'.join(wrap(x, 16)) for x in  titles]
+    ind = np.arange(N)  
+    width = 0.35 
+    p2 = plt.bar(ind, dislikes, width,  color = 'red')
+    plt.ylabel('Number Dislikes')
+    plt.title('Top 6 Disliked Videos on JRP Youtube')
+    plt.xticks(ind, (titles[0], titles[1], titles[2], titles[3], titles[4], titles[5]))
+    #plt.yticks(np.arange(0, 81, 10))
+    
+    plt.show()  
 
 def pieChartMostViewedEps(cur):
     # get the most viewed eps title, like and disliked 
@@ -247,7 +245,6 @@ def pieChartMostViewedEps(cur):
     sizes = [percLikes,prcDislikes]
     colors = ['red','orange']
     
- 
     # Plot
     #title1 = 'Most Viewed Episode %s likes to dislikes'%episode
     fig = plt.figure()
@@ -256,31 +253,25 @@ def pieChartMostViewedEps(cur):
         autopct='%1.1f%%', startangle=14
        )
     ax1.set(title='Most Viewed Episode %s likes to dislikes'%episode)
- #title="Most Viewed Episode %s likes to dislikes" % (episode)
+    #title="Most Viewed Episode %s likes to dislikes" % (episode)
     plt.axis('equal')
     plt.show()
-
 
 
 def main():
     cur, conn = setUpDatabase('JRP.db')
     #SECTION 1 - PUT AT LEAST 200 PEOPLE BEFORE GETTING APPERANCES/GUEST NAMES BELOW 
-    #uploadDataJRE(cur,conn)
-
-
-    #SECTION 2 
-    # names = getNames(cur)   
-    # countedNames = countNames(names)
-    # printNamesPretty(countedNames, 'fileOutPutGuests.txt')
-    # putNamesInData(countedNames,cur,conn)
-
-    #SECTION 3
-    # fillGuestId(cur,conn)
+    uploadDataJRE(cur,conn)
+    printNamesPretty(cur,'youtube.txt')
+  
 
     #GRAPHS
-    # barChartApperances(cur)
+    # barChart3(cur)
+    # barChart1(cur)
     # barChart2(cur)
     # pieChartMostViewedEps(cur)
+    # barChart4(cur)
+   
 
 if __name__ == '__main__':
     main()
