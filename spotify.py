@@ -156,18 +156,18 @@ def main():
 
     #SECTION 1: get data
     #to create accurate visualizations, you should gather at least 200 pieces of data (run code 8 times)
-    # try:
-    #     cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
-    #     start = cur.fetchone()
-    #     start = start[0]
-    # except:
-    #     start = 0
-    # data = episodes_search('4rOoJ6Egrf8K2IrywzwOMk', start, cur)
-    # setUpEpisodes(data, cur, conn)
+    try:
+        cur.execute('SELECT episode_id FROM Spotify_Episodes WHERE episode_id  = (SELECT MAX(episode_id) FROM Spotify_Episodes)')
+        start = cur.fetchone()
+        start = start[0]
+    except:
+        start = 0
+    data = episodes_search('4rOoJ6Egrf8K2IrywzwOMk', start, cur)
+    setUpEpisodes(data, cur, conn)
 
-    #SECTION 2: create calculations + graphs once data has been collected
-    createPieChart(cur)
-    createBarGraph(cur, 'fileOutputEpisodes.txt')
+    #SECTION 2: if you want to see calculations + visualizations, uncomment lines below.
+    # createPieChart(cur)
+    # createBarGraph(cur, 'fileOutputEpisodes.txt')
 
     conn.close()
 
